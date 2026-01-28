@@ -9,6 +9,7 @@ Same Game Parlays for player props.
 - `sgp_engine.modeling` provides lognormal parameter fitting and correlation helpers.
 - `sgp_engine.simulation` simulates correlated lognormal outcomes and evaluates parlay legs.
 - `sgp_engine.odds` converts American odds and computes expected value.
+- `sgp_engine.ingestion` wraps Basketball Reference and The Odds API ingestion.
 
 ## Quickstart
 
@@ -52,8 +53,21 @@ print(result.leg_probabilities, result.joint_probability)
 print("EV:", expected_value(result.joint_probability, odds=220))
 ```
 
+## Data Ingestion
+
+```python
+from sgp_engine.ingestion import OddsAPIClient, extract_player_props, fetch_player_game_logs
+
+# Basketball Reference
+player_logs = fetch_player_game_logs(season=2024)
+
+# The Odds API
+client = OddsAPIClient(api_key="YOUR_API_KEY")
+odds_payload = client.get_odds()
+props = extract_player_props(odds_payload)
+```
+
 ## Next Steps
 
-1. Add data ingestion for Basketball Reference and The Odds API.
-2. Build matching logic for live prop lines.
-3. Expand correlation modeling across teammates and minutes trends.
+1. Build matching logic for live prop lines.
+2. Expand correlation modeling across teammates and minutes trends.
