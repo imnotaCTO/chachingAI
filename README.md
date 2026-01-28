@@ -10,6 +10,7 @@ Same Game Parlays for player props.
 - `sgp_engine.simulation` simulates correlated lognormal outcomes and evaluates parlay legs.
 - `sgp_engine.odds` converts American odds and computes expected value.
 - `sgp_engine.ingestion` wraps Basketball Reference and The Odds API ingestion.
+- `sgp_engine.feature_engineering` builds rolling feature pipelines from historical logs.
 
 ## Quickstart
 
@@ -65,6 +66,25 @@ player_logs = fetch_player_game_logs(season=2024)
 client = OddsAPIClient(api_key="YOUR_API_KEY")
 odds_payload = client.get_odds()
 props = extract_player_props(odds_payload)
+```
+
+## Feature Engineering
+
+```python
+from sgp_engine.feature_engineering import build_player_feature_dataset
+from sgp_engine.ingestion import fetch_player_game_logs, fetch_team_game_logs
+
+player_logs = fetch_player_game_logs(season=2024)
+team_logs = fetch_team_game_logs(season=2024)
+
+features = build_player_feature_dataset(
+    player_logs,
+    team_logs=team_logs,
+    window=10,
+    ema_span=5,
+    min_games=10,
+    min_minutes=10.0,
+)
 ```
 
 ## Next Steps

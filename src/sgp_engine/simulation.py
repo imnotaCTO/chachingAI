@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Iterable
 
 import numpy as np
-from scipy.stats import norm
 
 
 @dataclass(frozen=True)

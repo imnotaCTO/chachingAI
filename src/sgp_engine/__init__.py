@@ -1,5 +1,13 @@
 """Core utilities for the Intelligent NBA Same Game Parlay engine."""
 
+from .feature_engineering import (
+    add_is_home_flag,
+    add_minutes_ema,
+    add_rolling_stats,
+    apply_stability_filters,
+    build_player_feature_dataset,
+    merge_team_context,
+)
 from .ingestion import (
     OddsAPIClient,
     extract_player_props,
@@ -26,4 +34,10 @@ __all__ = [
     "fetch_box_scores",
     "OddsAPIClient",
     "extract_player_props",
+    "add_is_home_flag",
+    "add_minutes_ema",
+    "add_rolling_stats",
+    "apply_stability_filters",
+    "build_player_feature_dataset",
+    "merge_team_context",
 ]
