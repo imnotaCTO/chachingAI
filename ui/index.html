@@ -28,6 +28,7 @@
             <select id="statsSource">
               <option value="balldontlie">BallDontLie</option>
               <option value="kaggle">Kaggle (local)</option>
+              <option value="cache">BallDontLie Cache (local)</option>
             </select>
           </label>
           <label class="field">
@@ -35,6 +36,7 @@
             <input id="dateInput" type="date" />
             <span id="todayBadge" class="today-badge">Today</span>
           </label>
+          <button id="loadSlate" class="btn">Load slate</button>
           <div class="refresh">
             <span>Last update</span>
             <strong id="lastUpdate">--</strong>
@@ -55,7 +57,11 @@
           <div class="panel-header">
             <div>
               <h2 id="eventTitle">Select a game</h2>
-              <div class="subtle">Choose legs for one sportsbook</div>
+              <div id="propsHint" class="subtle">Choose legs for one sportsbook</div>
+            </div>
+            <div class="tab-group">
+              <button id="tabAll" class="tab active" type="button">All Props</button>
+              <button id="tabNotable" class="tab" type="button">Notable Bets</button>
             </div>
             <div class="filters">
               <label class="pill">
@@ -83,6 +89,29 @@
           </div>
           <div class="panel-body">
             <div id="legsList" class="legs-list"></div>
+            <div class="settings-card">
+              <div class="settings-title">Model Settings</div>
+              <label class="settings-field">
+                <span>Sample window (last N games)</span>
+                <input id="windowInput" type="number" min="0" step="1" value="25" />
+              </label>
+              <label class="settings-field">
+                <span>Min games</span>
+                <input id="minGamesInput" type="number" min="1" step="1" value="15" />
+              </label>
+              <label class="settings-field">
+                <span>Min minutes</span>
+                <input id="minMinutesInput" type="number" min="0" step="1" value="20" />
+              </label>
+              <label class="settings-toggle">
+                <input id="useEmaInput" type="checkbox" checked />
+                <span>Use EMA weighting</span>
+              </label>
+              <label class="settings-field">
+                <span>EMA span</span>
+                <input id="emaSpanInput" type="number" min="2" step="1" value="12" />
+              </label>
+            </div>
             <div class="summary-card">
               <div class="summary-row">
                 <span>Model joint probability</span>

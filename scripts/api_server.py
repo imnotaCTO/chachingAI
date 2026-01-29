@@ -20,14 +20,25 @@ from sgp_engine.ingestion import (
     extract_player_props,
     fetch_player_game_logs_by_name,
     fetch_player_game_logs_by_name_kaggle,
+    fetch_player_game_logs_from_cache,
 )
-from sgp_engine.modeling import fit_lognormal_params
+from sgp_engine.modeling import fit_lognormal_params, lognormal_mean
 
-DEFAULT_MARKETS = ("player_points", "player_rebounds", "player_assists")
+DEFAULT_MARKETS = (
+    "player_points",
+    "player_rebounds",
+    "player_assists",
+    "player_points_alternate",
+    "player_rebounds_alternate",
+    "player_assists_alternate",
+)
 MARKET_TO_STAT = {
     "player_points": "points",
     "player_rebounds": "rebounds",
     "player_assists": "assists",
+    "player_points_alternate": "points",
+    "player_rebounds_alternate": "rebounds",
+    "player_assists_alternate": "assists",
 }
 
 
@@ -109,7 +120,8 @@ class APIServer(BaseHTTPRequestHandler):
     odds_api_key: str | None = None
     bdl_api_key: str | None = None
     kaggle_path: str = "PlayerStatistics.csv"
-    player_stat_cache: dict[tuple[str, str, int], dict[str, tuple[float, float, int]]] = {}
+    cache_path: str | None = None
+    player_stat_cache: dict[tuple, dict[str, float | int | None]] = {}
     sportsbook_cache: dict[str, list[str]] = {}
     events_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
     props_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -168,7 +180,11 @@ class APIServer(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _handle_sportsbooks(self) -> None:
-        cache_key = "default"
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        date_str = query.get("date", [None])[0]
+        markets = query.get("markets", [",".join(DEFAULT_MARKETS)])[0].split(",")
+        cache_key = f"{date_str or 'default'}:{','.join(markets)}"
         cached = self.sportsbook_cache.get(cache_key)
         if cached:
             return self._send_json({"sportsbooks": cached})
@@ -178,9 +194,16 @@ class APIServer(BaseHTTPRequestHandler):
 
         client = OddsAPIClient(api_key=self.odds_api_key)
         try:
-            odds_payload = client.get_odds(markets=("player_points",))
+            odds_payload = client.get_odds(markets=markets)
         except Exception:
             return self._send_json({"sportsbooks": ["DraftKings"]})
+
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                odds_payload = [event for event in odds_payload if event_in_date(event, target_date)]
+            except ValueError:
+                pass
 
         books = set()
         for event in odds_payload:
@@ -232,6 +255,14 @@ class APIServer(BaseHTTPRequestHandler):
             logs = fetch_player_game_logs_by_name_kaggle(
                 player_name=player_name, season_end_year=season, data_path=self.kaggle_path
             )
+        elif source == "cache":
+            if not self.cache_path:
+                raise ValueError("missing_cache_path")
+            logs = fetch_player_game_logs_from_cache(
+                player_name=player_name,
+                data_path=self.cache_path,
+                season_end_year=season,
+            )
         else:
             if not self.bdl_api_key:
                 raise ValueError("missing_bdl_api_key")
@@ -242,23 +273,71 @@ class APIServer(BaseHTTPRequestHandler):
         return logs
 
     def _player_stat_params(
-        self, player_name: str, source: str, season: int, stat: str
-    ) -> tuple[float, float, int] | None:
-        cache_key = (player_name, source, season)
-        cached = self.player_stat_cache.get(cache_key, {})
-        if stat in cached:
-            return cached[stat]
+        self,
+        player_name: str,
+        source: str,
+        season: int,
+        stat: str,
+        *,
+        window: int,
+        min_games: int,
+        min_minutes: float,
+        use_ema: bool,
+        ema_span: int,
+    ) -> dict[str, float | int | None] | None:
+        cache_key = (player_name, source, season, stat, window, min_games, min_minutes, use_ema, ema_span)
+        cached = self.player_stat_cache.get(cache_key)
+        if cached:
+            return cached
 
         logs = self._fetch_player_logs(source, player_name, season)
         if stat not in logs.columns:
             return None
-        samples = logs[stat].dropna().astype(float).to_numpy()
-        if samples.size < 2:
-            return None
-        mu, sigma = fit_lognormal_params(samples)
-        result = (mu, sigma, int(samples.size))
-        cached[stat] = result
-        self.player_stat_cache[cache_key] = cached
+        logs = logs.copy()
+        if "date" in logs.columns:
+            logs["date"] = pd.to_datetime(logs["date"], errors="coerce")
+            logs = logs.sort_values("date")
+        if "minutes" in logs.columns and min_minutes > 0:
+            logs = logs[logs["minutes"] >= min_minutes]
+        season_samples = logs[stat].dropna().astype(float).to_numpy()
+        season_avg = float(season_samples.mean()) if season_samples.size > 0 else None
+        samples_df = logs[[stat]].dropna()
+        if window and window > 0:
+            samples_df = samples_df.tail(window)
+        samples = samples_df[stat].astype(float).to_numpy()
+        if samples.size < max(2, min_games):
+            result = {
+                "mu": None,
+                "sigma": None,
+                "sample_size": int(samples.size),
+                "season_avg": season_avg,
+                "model_mean": None,
+            }
+            self.player_stat_cache[cache_key] = result
+            return result
+        if use_ema:
+            span = max(2, int(ema_span))
+            alpha = 2 / (span + 1)
+            n = samples.size
+            weights = np.array([(1 - alpha) ** (n - 1 - i) for i in range(n)], dtype=float)
+            weights_sum = weights.sum()
+            if weights_sum <= 0:
+                return None
+            log_samples = np.log1p(samples)
+            mu = float((weights * log_samples).sum() / weights_sum)
+            var = float((weights * (log_samples - mu) ** 2).sum() / weights_sum)
+            sigma = float(np.sqrt(max(var, 1e-12)))
+        else:
+            mu, sigma = fit_lognormal_params(samples)
+        model_mean = float(lognormal_mean(mu, sigma))
+        result = {
+            "mu": float(mu),
+            "sigma": float(sigma),
+            "sample_size": int(samples.size),
+            "season_avg": season_avg,
+            "model_mean": model_mean,
+        }
+        self.player_stat_cache[cache_key] = result
         return result
 
     def _handle_props(self, event_id: str, query: dict[str, list[str]]) -> None:
@@ -266,11 +345,19 @@ class APIServer(BaseHTTPRequestHandler):
             return self._send_json({"error": "missing_odds_api_key"}, status=HTTPStatus.BAD_REQUEST)
 
         sportsbook = (query.get("sportsbook", [None])[0] or "").strip()
-        stats_source = (query.get("stats_source", ["balldontlie"])[0] or "balldontlie").strip()
+        stats_source = (query.get("stats_source", ["kaggle"])[0] or "kaggle").strip()
         season = int(query.get("season", [datetime.now().year])[0])
         max_players = int(query.get("max_players", [self.max_players])[0])
         markets = query.get("markets", [",".join(DEFAULT_MARKETS)])[0].split(",")
-        cache_key = f"{event_id}:{sportsbook}:{stats_source}:{season}:{max_players}:{','.join(markets)}"
+        window = int(query.get("window", [0])[0] or 0)
+        min_games = int(query.get("min_games", [15])[0] or 15)
+        min_minutes = float(query.get("min_minutes", [0])[0] or 0)
+        use_ema = query.get("use_ema", ["0"])[0] in {"1", "true", "True"}
+        ema_span = int(query.get("ema_span", [10])[0] or 10)
+        cache_key = (
+            f"{event_id}:{sportsbook}:{stats_source}:{season}:{max_players}:{','.join(markets)}:"
+            f"{window}:{min_games}:{min_minutes}:{int(use_ema)}:{ema_span}"
+        )
         cached = self.props_cache.get(cache_key)
         if cached and time.time() - cached[0] < self.cache_ttl_seconds:
             return self._send_json(cached[1])
@@ -283,6 +370,17 @@ class APIServer(BaseHTTPRequestHandler):
 
         if isinstance(odds_payload, dict):
             odds_payload = [odds_payload]
+        available_markets: set[str] = set()
+        bookmakers: set[str] = set()
+        for event in odds_payload:
+            for bookmaker in event.get("bookmakers", []):
+                title = bookmaker.get("title")
+                if title:
+                    bookmakers.add(title)
+                for market in bookmaker.get("markets", []):
+                    key = market.get("key")
+                    if key:
+                        available_markets.add(str(key))
         props = extract_player_props(odds_payload, markets=markets)
         sportsbook_warning = None
         if sportsbook:
@@ -323,17 +421,35 @@ class APIServer(BaseHTTPRequestHandler):
 
             model_probability = None
             sample_size = None
+            season_avg = None
+            model_mean = None
             try:
-                params = self._player_stat_params(player_name, stats_source, season, stat)
+                params = self._player_stat_params(
+                    player_name,
+                    stats_source,
+                    season,
+                    stat,
+                    window=window,
+                    min_games=min_games,
+                    min_minutes=min_minutes,
+                    use_ema=use_ema,
+                    ema_span=ema_span,
+                )
                 if params:
-                    mu, sigma, sample_size = params
+                    mu = params.get("mu")
+                    sigma = params.get("sigma")
+                    sample_size = params.get("sample_size")
+                    season_avg = params.get("season_avg")
+                    model_mean = params.get("model_mean")
                     line = float(prop.get("line")) if prop.get("line") is not None else None
                     direction = str(prop.get("direction") or "over")
-                    if line is not None:
+                    if line is not None and mu is not None and sigma is not None:
                         model_probability = lognormal_hit_probability(mu, sigma, line, direction)
             except Exception:
                 model_probability = None
                 sample_size = None
+                season_avg = None
+                model_mean = None
 
             enriched.append(
                 {
@@ -347,6 +463,8 @@ class APIServer(BaseHTTPRequestHandler):
                     "odds": prop.get("odds"),
                     "model_probability": model_probability,
                     "sample_size": sample_size,
+                    "season_avg": season_avg,
+                    "model_mean": model_mean,
                 }
             )
 
@@ -357,6 +475,8 @@ class APIServer(BaseHTTPRequestHandler):
             "season": season,
             "last_update": last_update,
             "props": enriched,
+            "available_markets": sorted(available_markets),
+            "bookmakers": sorted(bookmakers),
         }
         if sportsbook_warning:
             response["warning"] = sportsbook_warning
@@ -453,6 +573,7 @@ def main() -> int:
     parser.add_argument("--cache-ttl-hours", type=float, default=12.0, help="Cache TTL in hours.")
     parser.add_argument("--max-players", type=int, default=30, help="Max players to enrich per request.")
     parser.add_argument("--kaggle-path", default="PlayerStatistics.csv", help="Path to Kaggle stats CSV.")
+    parser.add_argument("--cache-path", default=None, help="Path to normalized BallDontLie cache (parquet or csv).")
     args = parser.parse_args()
 
     load_dotenv()
@@ -465,6 +586,7 @@ def main() -> int:
     server.RequestHandlerClass.cache_ttl_hours = args.cache_ttl_hours
     server.RequestHandlerClass.max_players = args.max_players
     server.RequestHandlerClass.kaggle_path = args.kaggle_path
+    server.RequestHandlerClass.cache_path = args.cache_path
 
     print(f"API server running on http://{args.host}:{args.port}")
     print("Press Ctrl+C to stop.")

@@ -27,6 +27,9 @@ DEFAULT_MARKET_MAP = {
     "player_points": "points",
     "player_rebounds": "rebounds",
     "player_assists": "assists",
+    "player_points_alternate": "points",
+    "player_rebounds_alternate": "rebounds",
+    "player_assists_alternate": "assists",
 }
 
 

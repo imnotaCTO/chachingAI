@@ -5,7 +5,14 @@ from typing import Iterable, Sequence
 
 import requests
 
-DEFAULT_MARKETS = ("player_points", "player_rebounds", "player_assists")
+DEFAULT_MARKETS = (
+    "player_points",
+    "player_rebounds",
+    "player_assists",
+    "player_points_alternate",
+    "player_rebounds_alternate",
+    "player_assists_alternate",
+)
 
 
 @dataclass(frozen=True)

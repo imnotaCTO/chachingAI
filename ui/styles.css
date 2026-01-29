@@ -127,6 +127,29 @@ body {
   min-width: 140px;
 }
 
+.btn {
+  border: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--accent-3);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(29, 53, 87, 0.25);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
 .refresh {
   font-size: 0.9rem;
   color: var(--muted);
@@ -207,6 +230,31 @@ body {
   flex-wrap: wrap;
 }
 
+.tab-group {
+  display: inline-flex;
+  gap: 8px;
+  background: rgba(29, 53, 87, 0.08);
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tab.active {
+  background: #fff;
+  color: var(--accent-3);
+  box-shadow: 0 4px 10px rgba(29, 53, 87, 0.12);
+}
+
 .pill {
   display: grid;
   gap: 6px;
@@ -227,6 +275,23 @@ body {
   display: grid;
   gap: 14px;
   padding: 16px;
+}
+
+.props-section {
+  display: grid;
+  gap: 12px;
+}
+
+.section-title {
+  font-weight: 600;
+  color: var(--accent-3);
+  font-size: 0.95rem;
+  margin-top: 8px;
+}
+
+.section-note {
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .prop-row {
@@ -332,6 +397,43 @@ body {
   border: 1px solid rgba(255, 107, 53, 0.2);
   display: grid;
   gap: 10px;
+}
+
+.settings-card {
+  padding: 14px;
+  border-radius: 16px;
+  background: #f7f4fb;
+  border: 1px solid rgba(29, 53, 87, 0.15);
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.settings-title {
+  font-weight: 600;
+  color: var(--accent-3);
+}
+
+.settings-field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.settings-field input {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-family: var(--sans);
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .summary-row {

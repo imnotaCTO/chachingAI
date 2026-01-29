@@ -23,9 +23,14 @@ Then open `http://localhost:5173` in a browser.
 - Props list with add-to-parlay
 - Parlay summary with model vs implied probabilities
 
+## Usage flow
+1) Pick sportsbook + stats source (Kaggle recommended for speed).
+2) Click **Load slate** to fetch games and props.
+
 ## Config
 - To point the UI at a different API server, edit `ui/config.js`.
 
 ## Troubleshooting
 - If props fail to load, verify API keys in `.env`.
 - The API server limits to 30 players per event by default; use `--max-players` to expand.
+- For the cache source, pass `--cache-path data/bdl_stats.parquet` when starting the API server.

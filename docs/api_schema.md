@@ -39,6 +39,10 @@ Response:
 Query:
 - sportsbook: name
 - markets: comma list, default "player_points,player_rebounds,player_assists"
+  - alternate markets supported:
+    - `player_points_alternate`
+    - `player_rebounds_alternate`
+    - `player_assists_alternate`
 Response:
 ```json
 {

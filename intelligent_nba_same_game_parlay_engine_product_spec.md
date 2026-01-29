@@ -233,7 +233,7 @@ are surfaced.
 - Line matching & EV detection
 
 **Phase 3 - Model Iteration**
-- Minutes prediction layer
+- Minutes prediction submodel (distributional minutes + integration into stat simulations)
 - Injury-based adjustments
 - Player clustering
 
