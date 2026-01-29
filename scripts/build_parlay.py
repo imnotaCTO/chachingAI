@@ -14,7 +14,6 @@ import pandas as pd
 from sgp_engine.ingestion import (
     fetch_player_game_logs_by_name,
     fetch_player_game_logs_by_name_kaggle,
-    fetch_player_game_logs_by_name_nba_api,
 )
 from sgp_engine.matching import normalize_player_name
 from sgp_engine.modeling import fit_lognormal_params, lognormal_correlations, make_psd_correlation
@@ -109,8 +108,6 @@ def _fetch_logs(
     kaggle_path: str,
     bdl_api_key: str | None,
 ) -> pd.DataFrame:
-    if source == "nba_api":
-        return fetch_player_game_logs_by_name_nba_api(player_name=player_name, season=season)
     if source == "kaggle":
         return fetch_player_game_logs_by_name_kaggle(
             player_name=player_name,
@@ -487,8 +484,8 @@ def main() -> int:
     parser.add_argument("--season", type=int, default=2024, help="NBA season year for logs.")
     parser.add_argument(
         "--stats-source",
-        default="nba_api",
-        choices=["nba_api", "balldontlie", "kaggle"],
+        default="balldontlie",
+        choices=["balldontlie", "kaggle"],
         help="Source for player game logs.",
     )
     parser.add_argument("--kaggle-path", default="PlayerStatistics.csv", help="Path to Kaggle PlayerStatistics.csv.")

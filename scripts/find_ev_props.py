@@ -16,7 +16,6 @@ from sgp_engine.ingestion import (
     extract_player_props,
     fetch_player_game_logs_by_name,
     fetch_player_game_logs_by_name_kaggle,
-    fetch_player_game_logs_by_name_nba_api,
 )
 from sgp_engine.matching import normalize_player_name
 from sgp_engine.modeling import fit_lognormal_params
@@ -134,8 +133,8 @@ def main() -> int:
     parser.add_argument("--season", type=int, default=2024, help="NBA season year for logs.")
     parser.add_argument(
         "--stats-source",
-        default="nba_api",
-        choices=["nba_api", "balldontlie", "kaggle"],
+        default="balldontlie",
+        choices=["balldontlie", "kaggle"],
         help="Source for player game logs.",
     )
     parser.add_argument(
@@ -255,12 +254,7 @@ def main() -> int:
                     if cached is not None:
                         logs = cached
                     else:
-                        if args.stats_source == "nba_api":
-                            logs = fetch_player_game_logs_by_name_nba_api(
-                                player_name=str(player_name),
-                                season=args.season,
-                            )
-                        elif args.stats_source == "kaggle":
+                        if args.stats_source == "kaggle":
                             logs = fetch_player_game_logs_by_name_kaggle(
                                 player_name=str(player_name),
                                 season_end_year=args.season,

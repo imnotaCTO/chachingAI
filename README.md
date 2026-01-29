@@ -9,8 +9,15 @@ Same Game Parlays for player props.
 - `sgp_engine.modeling` provides lognormal parameter fitting and correlation helpers.
 - `sgp_engine.simulation` simulates correlated lognormal outcomes and evaluates parlay legs.
 - `sgp_engine.odds` converts American odds and computes expected value.
-- `sgp_engine.ingestion` wraps Basketball Reference and The Odds API ingestion.
+- `sgp_engine.ingestion` wraps BallDontLie, Kaggle, and The Odds API ingestion.
 - `sgp_engine.feature_engineering` builds rolling feature pipelines from historical logs.
+
+## Docs
+
+- `docs/ui_framework.md` UI flow and component framework.
+- `docs/api_schema.md` Draft API contract for a parlay builder.
+- `docs/data_pipeline.md` Data pipeline requirements for same-game and multi-game parlays.
+- `ui/README.md` Static UI prototype wired to the local API server.
 
 ## Quickstart
 
@@ -84,10 +91,14 @@ print(recommendation.joint_probability, recommendation.model_fair_odds, recommen
 ## Data Ingestion
 
 ```python
-from sgp_engine.ingestion import OddsAPIClient, extract_player_props, fetch_player_game_logs
+from sgp_engine.ingestion import OddsAPIClient, extract_player_props, fetch_player_game_logs_by_name
 
-# Basketball Reference
-player_logs = fetch_player_game_logs(season=2024)
+# BallDontLie
+player_logs = fetch_player_game_logs_by_name(
+    player_name="Nikola Jokic",
+    season=2024,
+    api_key="YOUR_BALLDONTLIE_KEY",
+)
 
 # The Odds API
 client = OddsAPIClient(api_key="YOUR_API_KEY")
@@ -112,14 +123,16 @@ legs = props_to_leg_specs(matched)
 
 ```python
 from sgp_engine.feature_engineering import build_player_feature_dataset
-from sgp_engine.ingestion import fetch_player_game_logs, fetch_team_game_logs
+from sgp_engine.ingestion import fetch_player_game_logs_by_name
 
-player_logs = fetch_player_game_logs(season=2024)
-team_logs = fetch_team_game_logs(season=2024)
+player_logs = fetch_player_game_logs_by_name(
+    player_name="Nikola Jokic",
+    season=2024,
+    api_key="YOUR_BALLDONTLIE_KEY",
+)
 
 features = build_player_feature_dataset(
     player_logs,
-    team_logs=team_logs,
     window=10,
     ema_span=5,
     min_games=10,
@@ -147,17 +160,6 @@ Optional BallDontLie overrides:
 - `BALLDONTLIE_BASE_URL` (default `https://api.balldontlie.io/v1`)
 - `BALLDONTLIE_AUTH_SCHEME` (set to `Bearer` if your key requires it)
 
-Scrape fallback (local/prototyping use only):
-- Pass `--allow-scrape-fallback` to fall back to Basketball Reference if BallDontLie fails.
-- If name lookup fails, pass `--bbr-player-id` (e.g., `jokicni01`).
-- If Basketball Reference blocks requests, save the game log HTML and pass `--bbr-html-path`.
-
-To use nba_api instead of BallDontLie:
-
-```powershell
-python scripts/price_live_parlay.py --stats-source nba_api --player "Nikola Jokic" --season 2024 --sportsbook-odds 220 --stats points assists
-```
-
 To use BallDontLie for daily EV scan:
 
 ```powershell
@@ -170,13 +172,13 @@ You can also filter the list with `--team`.
 To list available player props for a selected event:
 
 ```powershell
-python scripts/price_live_parlay.py --stats-source nba_api --player "Nikola Jokic" --season 2024 --sportsbook-odds 220 --stats points assists --list-players
+python scripts/price_live_parlay.py --player "Nikola Jokic" --season 2024 --sportsbook-odds 220 --stats points assists --list-players
 ```
 
 To auto-select a player from the chosen event:
 
 ```powershell
-python scripts/price_live_parlay.py --auto-player --stats-source nba_api --season 2024 --sportsbook-odds 220 --stats points assists
+python scripts/price_live_parlay.py --auto-player --season 2024 --sportsbook-odds 220 --stats points assists
 ```
 
 To use the Kaggle dataset (PlayerStatistics.csv in repo root):
@@ -198,6 +200,22 @@ To use the Kaggle dataset for daily EV scan:
 ```powershell
 python scripts/find_ev_props.py --stats-source kaggle --kaggle-path PlayerStatistics.csv --date today --season 2026 --min-games 15 --min-minutes 20 --min-ev 0.03 --stats points rebounds assists
 ```
+
+## Tests
+
+```powershell
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+## UI + Live Data
+
+```powershell
+python scripts/api_server.py --port 8000
+cd ui
+python -m http.server 5173
+```
+
+Open `http://localhost:5173`. Configure the API base URL in `ui/config.js` if needed.
 
 The EV scan now prompts you to select a single event (use `--event-id` to skip).
 Caching is enabled by default in `.cache/ev_props` with a 12-hour TTL.

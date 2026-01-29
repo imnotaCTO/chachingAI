@@ -12,12 +12,8 @@ from .ingestion import (
     OddsAPIClient,
     BallDontLieClient,
     extract_player_props,
-    fetch_box_scores,
-    fetch_player_game_logs,
     fetch_player_game_logs_by_name,
     fetch_player_game_logs_by_name_kaggle,
-    fetch_player_game_logs_by_name_nba_api,
-    fetch_team_game_logs,
 )
 from .modeling import (
     fit_lognormal_params,
@@ -57,9 +53,6 @@ __all__ = [
     "fetch_player_game_logs",
     "fetch_player_game_logs_by_name",
     "fetch_player_game_logs_by_name_kaggle",
-    "fetch_player_game_logs_by_name_nba_api",
-    "fetch_team_game_logs",
-    "fetch_box_scores",
     "OddsAPIClient",
     "BallDontLieClient",
     "extract_player_props",

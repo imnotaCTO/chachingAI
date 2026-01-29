@@ -7,6 +7,8 @@ def fit_lognormal_params(samples: np.ndarray) -> tuple[float, float]:
     """Estimate lognormal parameters using log1p-transformed samples."""
     if samples.size == 0:
         raise ValueError("samples must be non-empty")
+    if samples.size < 2:
+        raise ValueError("samples must contain at least two values")
     log_samples = np.log1p(samples)
     mu = float(np.mean(log_samples))
     sigma = float(np.std(log_samples, ddof=1))

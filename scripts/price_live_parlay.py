@@ -12,10 +12,6 @@ from sgp_engine.ingestion import (
     extract_player_props,
     fetch_player_game_logs_by_name,
     fetch_player_game_logs_by_name_kaggle,
-    fetch_player_game_logs_by_name_nba_api,
-)
-from sgp_engine.ingestion.basketball_reference import (
-    fetch_player_game_logs_by_name as fetch_player_game_logs_by_name_bbr,
 )
 from sgp_engine.matching import match_props_to_player_ids, normalize_player_name, props_to_leg_specs
 from sgp_engine.pipeline import price_parlay_from_samples
@@ -121,7 +117,7 @@ def main() -> int:
     parser.add_argument(
         "--stats-source",
         default="balldontlie",
-        choices=["balldontlie", "nba_api", "bbr", "kaggle"],
+        choices=["balldontlie", "kaggle"],
         help="Source for player game logs.",
     )
     parser.add_argument(
@@ -165,21 +161,6 @@ def main() -> int:
         default=None,
         help="Override BallDontLie auth scheme (e.g., Bearer).",
     )
-    parser.add_argument(
-        "--allow-scrape-fallback",
-        action="store_true",
-        help="Fall back to scraping Basketball Reference if BallDontLie fails.",
-    )
-    parser.add_argument(
-        "--bbr-player-id",
-        default=None,
-        help="Basketball Reference player id (e.g., jokicni01) for scrape fallback.",
-    )
-    parser.add_argument(
-        "--bbr-html-path",
-        default=None,
-        help="Optional path to a saved Basketball Reference game log HTML file.",
-    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -187,20 +168,13 @@ def main() -> int:
     if not odds_api_key:
         raise SystemExit("Missing ODDS_API_KEY. Set it in the environment or .env file.")
     bdl_api_key = os.environ.get("BALLDONTLIE_API_KEY")
-    if args.stats_source == "balldontlie" and not bdl_api_key and not args.allow_scrape_fallback:
+    if args.stats_source == "balldontlie" and not bdl_api_key:
         raise SystemExit("Missing BALLDONTLIE_API_KEY. Set it in the environment or .env file.")
     bdl_base_url = args.bdl_base_url or os.environ.get("BALLDONTLIE_BASE_URL")
     bdl_auth_scheme = args.bdl_auth_scheme or os.environ.get("BALLDONTLIE_AUTH_SCHEME")
 
     player_logs = None
-
     stat_order = [stat.lower() for stat in args.stats]
-    stat_columns = resolve_stat_columns(player_logs, stat_order)
-    available = player_rows.dropna(subset=list(stat_columns.values()))
-    if available.shape[0] < 2:
-        raise SystemExit("Not enough historical samples after filtering for required stats.")
-
-    samples = available[[stat_columns[stat] for stat in stat_order]].to_numpy()
 
     client = OddsAPIClient(api_key=odds_api_key)
     if args.event_id:
@@ -252,74 +226,32 @@ def main() -> int:
             print(f"- {name}")
         raise SystemExit("No matching props found for the player.")
 
-    if args.stats_source == "balldontlie" and not bdl_api_key and not args.allow_scrape_fallback:
-        raise SystemExit("Missing BALLDONTLIE_API_KEY. Set it in the environment or .env file.")
-
-    if args.stats_source == "nba_api":
-        player_logs = fetch_player_game_logs_by_name_nba_api(
-            player_name=selected_player,
-            season=args.season,
-        )
-    elif args.stats_source == "kaggle":
+    if args.stats_source == "kaggle":
         player_logs = fetch_player_game_logs_by_name_kaggle(
             player_name=selected_player,
             season_end_year=args.season,
             data_path=args.kaggle_path,
         )
-    elif args.stats_source == "bbr":
-        try:
-            html_text = None
-            if args.bbr_html_path:
-                with open(args.bbr_html_path, "r", encoding="utf-8") as handle:
-                    html_text = handle.read()
-            player_logs = fetch_player_game_logs_by_name_bbr(
-                player_name=selected_player,
-                season=args.season,
-                player_id=args.bbr_player_id,
-                html_text=html_text,
-            )
-        except ValueError as exc:
-            if args.bbr_player_id:
-                raise
-            raise SystemExit(
-                f"{exc}. Provide --bbr-player-id (e.g., jokicni01) to bypass lookup."
-            ) from exc
     else:
-        if bdl_api_key:
-            try:
-                player_logs = fetch_player_game_logs_by_name(
-                    player_name=selected_player,
-                    season=args.season,
-                    api_key=bdl_api_key,
-                    player_id=args.player_id,
-                    allow_last_name_match=args.allow_last_name_match,
-                    base_url=bdl_base_url or "https://api.balldontlie.io/v1",
-                    auth_scheme=bdl_auth_scheme,
-                )
-            except Exception as exc:
-                if not args.allow_scrape_fallback:
-                    raise
-                print(f"BallDontLie failed ({exc}); falling back to Basketball Reference scrape.")
+        player_logs = fetch_player_game_logs_by_name(
+            player_name=selected_player,
+            season=args.season,
+            api_key=bdl_api_key,
+            player_id=args.player_id,
+            allow_last_name_match=args.allow_last_name_match,
+            base_url=bdl_base_url or "https://api.balldontlie.io/v1",
+            auth_scheme=bdl_auth_scheme,
+        )
+    if player_logs is None or player_logs.empty:
+        raise SystemExit("No player logs available for the selected source.")
 
-        if player_logs is None:
-            try:
-                html_text = None
-                if args.bbr_html_path:
-                    with open(args.bbr_html_path, "r", encoding="utf-8") as handle:
-                        html_text = handle.read()
-                player_logs = fetch_player_game_logs_by_name_bbr(
-                    player_name=selected_player,
-                    season=args.season,
-                    player_id=args.bbr_player_id,
-                    html_text=html_text,
-                )
-            except ValueError as exc:
-                if args.bbr_player_id:
-                    raise
-                raise SystemExit(
-                    f"{exc}. Provide --bbr-player-id (e.g., jokicni01) to bypass lookup."
-                ) from exc
     player_rows = player_logs.copy()
+    stat_columns = resolve_stat_columns(player_rows, stat_order)
+    available = player_rows.dropna(subset=list(stat_columns.values()))
+    if available.shape[0] < 2:
+        raise SystemExit("Not enough historical samples after filtering for required stats.")
+
+    samples = available[[stat_columns[stat] for stat in stat_order]].to_numpy()
     matched = match_props_to_player_ids(
         props,
         player_logs,

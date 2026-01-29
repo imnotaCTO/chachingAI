@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parlay Builder UI</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orbit"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">SGP</div>
+          <div>
+            <div class="brand-title">Parlay Builder</div>
+            <div class="brand-subtitle">Model probability vs sportsbook implied</div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <label class="field">
+            <span>Sportsbook</span>
+            <select id="sportsbookSelect"></select>
+          </label>
+          <label class="field">
+            <span>Stats source</span>
+            <select id="statsSource">
+              <option value="balldontlie">BallDontLie</option>
+              <option value="kaggle">Kaggle (local)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Date</span>
+            <input id="dateInput" type="date" />
+            <span id="todayBadge" class="today-badge">Today</span>
+          </label>
+          <div class="refresh">
+            <span>Last update</span>
+            <strong id="lastUpdate">--</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="grid">
+        <aside class="panel games">
+          <div class="panel-header">
+            <h2>Games</h2>
+            <input id="gameFilter" type="text" placeholder="Filter by team..." />
+          </div>
+          <div id="gamesList" class="panel-body"></div>
+        </aside>
+
+        <section class="panel props">
+          <div class="panel-header">
+            <div>
+              <h2 id="eventTitle">Select a game</h2>
+              <div class="subtle">Choose legs for one sportsbook</div>
+            </div>
+            <div class="filters">
+              <label class="pill">
+                <span>Player</span>
+                <input id="playerFilter" type="text" placeholder="Search player..." />
+              </label>
+              <label class="pill">
+                <span>Stat</span>
+                <select id="statFilter">
+                  <option value="">All</option>
+                  <option value="points">Points</option>
+                  <option value="rebounds">Rebounds</option>
+                  <option value="assists">Assists</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div id="propsList" class="props-list"></div>
+        </section>
+
+        <aside class="panel summary">
+          <div class="panel-header">
+            <h2>Parlay</h2>
+            <div class="subtle" id="parlayMeta">0 legs selected</div>
+          </div>
+          <div class="panel-body">
+            <div id="legsList" class="legs-list"></div>
+            <div class="summary-card">
+              <div class="summary-row">
+                <span>Model joint probability</span>
+                <strong id="modelProb">--</strong>
+              </div>
+              <div class="summary-row">
+                <span>Sportsbook implied (legs)</span>
+                <strong id="impliedProb">--</strong>
+              </div>
+              <div class="summary-row">
+                <span>Model fair odds</span>
+                <strong id="fairOdds">--</strong>
+              </div>
+              <div class="summary-row">
+                <span>Estimated EV</span>
+                <strong id="expectedValue">--</strong>
+              </div>
+              <div class="summary-note">
+                Estimated sportsbook implied probability is derived from leg odds.
+              </div>
+            </div>
+            <div class="diagnostics">
+              <div class="diag-header">Diagnostics</div>
+              <div class="diag-row">
+                <span>Min sample size</span>
+                <strong id="sampleSize">--</strong>
+              </div>
+              <div class="diag-row">
+                <span>Correlation mode</span>
+                <strong id="corrMode">Copula</strong>
+              </div>
+              <div class="diag-row">
+                <span>Cross-game mode</span>
+                <strong id="crossGameMode">Independent</strong>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>

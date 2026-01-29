@@ -20,18 +20,12 @@ The system explicitly **does not assume independence** between legs. Instead, it
 
 ## Data Sources
 
-### 1. Basketball Reference (Historical Stats)
-**Source:** https://github.com/vishaalagartha/basketball_reference_scraper/
+### 1. BallDontLie + Kaggle (Historical Stats)
+**Sources:** https://www.balldontlie.io/ and Kaggle NBA datasets (PlayerStatistics.csv)
 
 Used for:
 - Player game logs (PTS, REB, AST, MIN)
-- Team-level pace proxies
 - Opponent context
-
-Key tables extracted:
-- `player_game_logs`
-- `team_game_logs`
-- `box_scores`
 
 Primary fields:
 - `player_id`
@@ -74,14 +68,14 @@ Captured fields:
 ## System Architecture
 
 ```
-Basketball Reference Scraper ──┐
-                               ├── Feature Engineering ── Distribution Models
-The Odds API ──────────────────┘                                 │
-                                                                  ↓
+BallDontLie + Kaggle ----------+
+                               +-- Feature Engineering --> Distribution Models
+The Odds API -------------------+                             |
+                                                              v
                                                      Correlated Simulation Engine
-                                                                  ↓
+                                                              v
                                                      Same Game Parlay Evaluator
-                                                                  ↓
+                                                              v
                                                       +EV SGP Recommendations
 ```
 
@@ -114,10 +108,10 @@ Stability filters:
 Each stat is modeled as **lognormal**:
 
 ```
-ln(X) ~ Normal(μ, σ²)
+ln(X) ~ Normal(mu, sigma^2)
 ```
 
-Where X ∈ {PTS, REB, AST}
+Where X in {PTS, REB, AST}
 
 Reasoning:
 - Non-negative
@@ -128,12 +122,12 @@ Reasoning:
 
 ### Parameter Estimation
 
-For historical samples x₁...xₙ:
+For historical samples x1...xn:
 
 ```
-yᵢ = ln(xᵢ + 1)
-μ = mean(y)
-σ² = variance(y)
+y_i = ln(x_i + 1)
+mu = mean(y)
+sigma^2 = variance(y)
 ```
 
 Notes:
@@ -142,7 +136,7 @@ Notes:
 
 Approximate mean:
 ```
-E[X] ≈ exp(μ + σ² / 2) - 1
+E[X] ~= exp(mu + sigma^2 / 2) - 1
 ```
 
 ---
@@ -172,10 +166,10 @@ ln(PTS+1), ln(REB+1), ln(AST+1)
 
 ### Gaussian Copula Framework
 
-1. Sample Z ~ Multivariate Normal(0, Σ)
-2. Transform each Zᵢ → Xᵢ via lognormal inverse CDF
+1. Sample Z ~ Multivariate Normal(0, Sigma)
+2. Transform each Z_i -> X_i via lognormal inverse CDF
 3. Evaluate prop outcomes vs sportsbook lines
-4. Repeat N times (10k–100k)
+4. Repeat N times (10k-100k)
 
 Outputs:
 - Probability each leg hits
@@ -229,16 +223,16 @@ are surfaced.
 
 ## MVP Milestones
 
-**Phase 1 – Offline Backtest**
+**Phase 1 - Offline Backtest**
 - Historical stat ingestion
 - Distribution fitting
 - Single-game parlay simulation
 
-**Phase 2 – Live Odds Integration**
+**Phase 2 - Live Odds Integration**
 - Real-time The Odds API ingestion
 - Line matching & EV detection
 
-**Phase 3 – Model Iteration**
+**Phase 3 - Model Iteration**
 - Minutes prediction layer
 - Injury-based adjustments
 - Player clustering
@@ -273,5 +267,5 @@ are surfaced.
 
 ---
 
-*This document defines the full MVP scope for an intelligent NBA Same Game Parlay engine built on Basketball Reference historical data and The Odds API market pricing.*
+*This document defines the full MVP scope for an intelligent NBA Same Game Parlay engine built on BallDontLie/Kaggle historical data and The Odds API market pricing.*
 
