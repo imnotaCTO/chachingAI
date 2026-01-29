@@ -5,6 +5,7 @@ from typing import Iterable
 
 import numpy as np
 
+from .modeling import make_psd_correlation
 
 @dataclass(frozen=True)
 class ParlayLeg:
@@ -25,6 +26,8 @@ def simulate_lognormal_copula(
     correlation: np.ndarray,
     simulations: int = 10000,
     rng: np.random.Generator | None = None,
+    ensure_psd: bool = True,
+    min_eigenvalue: float = 1e-6,
 ) -> np.ndarray:
     """Simulate correlated lognormal outcomes using a Gaussian copula."""
     if mu.shape != sigma.shape:
@@ -33,6 +36,8 @@ def simulate_lognormal_copula(
         raise ValueError("correlation must be square")
     if correlation.shape[0] != mu.shape[0]:
         raise ValueError("correlation dimension must match mu length")
+    if ensure_psd:
+        correlation = make_psd_correlation(correlation, min_eigenvalue=min_eigenvalue)
     rng = rng or np.random.default_rng()
     chol = np.linalg.cholesky(correlation)
     z = rng.standard_normal(size=(simulations, mu.shape[0]))

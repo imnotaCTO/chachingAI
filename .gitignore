@@ -6,3 +6,13 @@ __pycache__/
 .venv/
 .env
 .DS_Store
+.cache/
+outputs/
+Games.csv
+LeagueSchedule24_25.csv
+LeagueSchedule25_26.csv
+PlayerStatistics.csv
+Players.csv
+TeamHistories.csv
+TeamStatistics.csv
+jokic_2024.html
