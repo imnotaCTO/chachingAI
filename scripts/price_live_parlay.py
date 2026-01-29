@@ -130,6 +130,7 @@ def main() -> int:
         help="Path to Kaggle PlayerStatistics.csv.",
     )
     parser.add_argument("--sportsbook-odds", type=float, required=True, help="Parlay odds from sportsbook.")
+    parser.add_argument("--sportsbook", default="DraftKings", help="Filter props to a sportsbook title.")
     parser.add_argument(
         "--stats",
         nargs="+",
@@ -222,6 +223,13 @@ def main() -> int:
     if isinstance(odds_payload, dict):
         odds_payload = [odds_payload]
     props = extract_player_props(odds_payload)
+    if args.sportsbook:
+        target_book = str(args.sportsbook).strip().lower()
+        props = [
+            prop
+            for prop in props
+            if str(prop.get("sportsbook", "")).strip().lower() == target_book
+        ]
     if args.list_players:
         names = sorted({prop.get("player_name") for prop in props if prop.get("player_name")})
         print("Players with props for this event:")

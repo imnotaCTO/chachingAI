@@ -140,8 +140,16 @@ class CandidateLeg:
     event_id: str | None
 
 
-def _build_candidate_pool(df: pd.DataFrame, min_ev: float, max_candidates: int) -> list[CandidateLeg]:
+def _build_candidate_pool(
+    df: pd.DataFrame,
+    min_ev: float,
+    max_candidates: int,
+    sportsbook: str | None,
+) -> list[CandidateLeg]:
     df = df.copy()
+    if sportsbook and "sportsbook" in df.columns:
+        target_book = str(sportsbook).strip().lower()
+        df = df[df["sportsbook"].astype(str).str.strip().str.lower() == target_book]
     df = df[df["ev"] >= min_ev]
     df = df.sort_values(by="ev", ascending=False)
     df = df.drop_duplicates(subset=["player", "stat", "line", "direction"], keep="first")
@@ -282,6 +290,89 @@ def _teammate_correlation(
     return corr
 
 
+def _opponent_correlation(
+    logs_map: dict[str, pd.DataFrame],
+    player_key_a: str,
+    player_key_b: str,
+    stat_a: str,
+    stat_b: str,
+    min_shared_games: int,
+    cache: dict[tuple[str, ...], float],
+    opponent_a: str | None = None,
+    location_a: str | None = None,
+    opponent_b: str | None = None,
+    location_b: str | None = None,
+) -> float:
+    key = tuple(sorted([player_key_a, player_key_b])) + (stat_a, stat_b, "opp")
+    if opponent_a:
+        key = key + (str(opponent_a),)
+    if location_a:
+        key = key + (str(location_a),)
+    if opponent_b:
+        key = key + (str(opponent_b),)
+    if location_b:
+        key = key + (str(location_b),)
+    if key in cache:
+        return cache[key]
+
+    logs_a = logs_map.get(player_key_a)
+    logs_b = logs_map.get(player_key_b)
+    if logs_a is None or logs_b is None:
+        cache[key] = 0.0
+        return 0.0
+    required_a = {"date", stat_a}
+    required_b = {"date", stat_b}
+    if not required_a.issubset(logs_a.columns) or not required_b.issubset(logs_b.columns):
+        cache[key] = 0.0
+        return 0.0
+
+    cols_a = list(required_a)
+    cols_b = list(required_b)
+    for col in ("opponent", "location"):
+        if col in logs_a.columns and col not in cols_a:
+            cols_a.append(col)
+        if col in logs_b.columns and col not in cols_b:
+            cols_b.append(col)
+    logs_a_use = logs_a[cols_a].copy()
+    logs_b_use = logs_b[cols_b].copy()
+
+    if opponent_a and "opponent" in logs_a_use.columns:
+        opp_norm = _normalize_team_name(opponent_a)
+        logs_a_use = logs_a_use[
+            logs_a_use["opponent"].astype(str).map(_normalize_team_name) == opp_norm
+        ]
+    if location_a and "location" in logs_a_use.columns:
+        loc_norm = str(location_a).lower()
+        logs_a_use = logs_a_use[logs_a_use["location"].astype(str).str.lower() == loc_norm]
+
+    if opponent_b and "opponent" in logs_b_use.columns:
+        opp_norm = _normalize_team_name(opponent_b)
+        logs_b_use = logs_b_use[
+            logs_b_use["opponent"].astype(str).map(_normalize_team_name) == opp_norm
+        ]
+    if location_b and "location" in logs_b_use.columns:
+        loc_norm = str(location_b).lower()
+        logs_b_use = logs_b_use[logs_b_use["location"].astype(str).str.lower() == loc_norm]
+
+    merged = logs_a_use[["date", stat_a]].merge(
+        logs_b_use[["date", stat_b]],
+        on="date",
+        how="inner",
+        suffixes=("_a", "_b"),
+    ).dropna()
+    if merged.shape[0] < min_shared_games:
+        cache[key] = 0.0
+        return 0.0
+
+    x = np.log1p(merged[stat_a].astype(float).to_numpy())
+    y = np.log1p(merged[stat_b].astype(float).to_numpy())
+    corr = float(np.corrcoef(x, y)[0, 1])
+    if np.isnan(corr):
+        corr = 0.0
+    cache[key] = corr
+    return corr
+
+
 def _simulate_joint_probability(
     legs: list[CandidateLeg],
     params: dict[tuple[str, str], tuple[float, float]],
@@ -349,6 +440,23 @@ def _simulate_joint_probability(
                         teammate_cache,
                     )
                 corr[j, i] = corr[i, j]
+            elif same_game and team_a and team_b and team_a != team_b:
+                opponent_a, location_a = context[i]
+                opponent_b, location_b = context[j]
+                corr[i, j] = _opponent_correlation(
+                    logs_map,
+                    legs[i].player_key,
+                    legs[j].player_key,
+                    legs[i].stat,
+                    legs[j].stat,
+                    min_shared_games,
+                    teammate_cache,
+                    opponent_a=opponent_a,
+                    location_a=location_a,
+                    opponent_b=opponent_b,
+                    location_b=location_b,
+                )
+                corr[j, i] = corr[i, j]
     corr = make_psd_correlation(corr)
     sims = simulate_lognormal_copula(
         mu=mu_arr,
@@ -368,6 +476,7 @@ class ParlayState:
     legs: list[CandidateLeg]
     player_counts: Counter
     game_counts: Counter
+    player_stat_pairs: set[tuple[str, str]]
     approx_prob: float
     book_prob: float
 
@@ -390,6 +499,7 @@ def main() -> int:
     parser.add_argument("--legs", type=int, default=10, help="Number of legs to build.")
     parser.add_argument("--max-legs-per-player", type=int, default=2, help="Max legs per player.")
     parser.add_argument("--max-legs-per-game", type=int, default=3, help="Max legs per game.")
+    parser.add_argument("--sportsbook", default="DraftKings", help="Filter legs by sportsbook in EV CSV.")
     parser.add_argument("--beam-width", type=int, default=100, help="Beam width.")
     parser.add_argument("--max-candidates", type=int, default=150, help="Max candidate legs.")
     parser.add_argument("--simulations", type=int, default=20000, help="Simulations per parlay.")
@@ -409,7 +519,7 @@ def main() -> int:
     if missing:
         raise SystemExit(f"Missing columns in EV CSV: {sorted(missing)}")
 
-    candidates = _build_candidate_pool(ev_df, args.min_ev, args.max_candidates)
+    candidates = _build_candidate_pool(ev_df, args.min_ev, args.max_candidates, args.sportsbook)
     if len(candidates) < args.legs:
         raise SystemExit("Not enough candidate legs after filtering.")
 
@@ -465,6 +575,7 @@ def main() -> int:
             legs=[],
             player_counts=Counter(),
             game_counts=Counter(),
+            player_stat_pairs=set(),
             approx_prob=1.0,
             book_prob=1.0,
         )
@@ -478,6 +589,8 @@ def main() -> int:
                     continue
                 if state.player_counts[cand.player_key] >= args.max_legs_per_player:
                     continue
+                if (cand.player_key, cand.stat) in state.player_stat_pairs:
+                    continue
                 game_key = cand.event_id or cand.game
                 if state.game_counts[game_key] >= args.max_legs_per_game:
                     continue
@@ -490,6 +603,7 @@ def main() -> int:
                     legs=new_legs,
                     player_counts=new_player_counts,
                     game_counts=new_game_counts,
+                    player_stat_pairs=state.player_stat_pairs | {(cand.player_key, cand.stat)},
                     approx_prob=state.approx_prob * cand.model_prob,
                     book_prob=state.book_prob * american_to_prob(cand.odds),
                 )

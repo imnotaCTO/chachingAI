@@ -155,6 +155,7 @@ def main() -> int:
     parser.add_argument("--max-results", type=int, default=50, help="Max rows to print.")
     parser.add_argument("--output-csv", default=None, help="CSV output path.")
     parser.add_argument("--regions", default="us", help="The Odds API regions.")
+    parser.add_argument("--sportsbook", default="DraftKings", help="Filter props to a sportsbook title.")
     parser.add_argument("--event-id", default=None, help="Optional Odds API event id to target.")
     parser.add_argument("--cache-dir", default=".cache/ev_props", help="Directory for player log cache.")
     parser.add_argument(
@@ -210,6 +211,15 @@ def main() -> int:
         if isinstance(odds_payload, dict):
             odds_payload = [odds_payload]
         props = extract_player_props(odds_payload)
+        if args.sportsbook:
+            target_book = str(args.sportsbook).strip().lower()
+            props = [
+                prop
+                for prop in props
+                if str(prop.get("sportsbook", "")).strip().lower() == target_book
+            ]
+        if not props:
+            continue
         unique_players = {
             normalize_player_name(str(prop.get("player_name", "")))
             for prop in props

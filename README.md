@@ -188,7 +188,7 @@ python scripts/price_live_parlay.py --stats-source kaggle --player "Nikola Jokic
 ## Find +EV Props (Daily Slate)
 
 ```powershell
-python scripts/find_ev_props.py --date today --season 2024 --min-games 15 --min-minutes 20 --min-ev 0.03 --stats points rebounds assists
+python scripts/find_ev_props.py --date today --season 2024 --min-games 15 --min-minutes 20 --min-ev 0.03 --stats points rebounds assists --sportsbook DraftKings
 ```
 
 This writes a CSV to `outputs/` and prints the top results to the console.
@@ -211,11 +211,11 @@ Build a 10-leg parlay from an EV CSV, enforcing:
 - min joint probability
 
 ```powershell
-python scripts/build_parlay.py --ev-csv outputs/ev_props_20260129.csv --season 2026 --stats-source kaggle --kaggle-path PlayerStatistics.csv --min-ev 0.10 --min-joint-prob 0.01 --legs 10
+python scripts/build_parlay.py --ev-csv outputs/ev_props_20260129.csv --season 2026 --stats-source kaggle --kaggle-path PlayerStatistics.csv --min-ev 0.10 --min-joint-prob 0.01 --legs 10 --sportsbook DraftKings
 ```
 
 The parlay EV is computed against a book-implied parlay price (product of leg implied probabilities).
-Teammate correlation is estimated by joining player logs on team+date and correlating log1p stats, optionally filtered by opponent + home/away context (min shared games default 8).
+Same-player correlations are modeled directly, and same-game teammate/opponent correlations are estimated by joining player logs on date and correlating log1p stats, optionally filtered by opponent + home/away context (min shared games default 8).
 
 ## Next Steps
 
