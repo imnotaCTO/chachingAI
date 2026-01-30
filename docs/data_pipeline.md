@@ -45,11 +45,26 @@
 - Minimum minutes threshold.
 - Log1p transform to handle zeros.
 - Validate that correlation matrices are PSD before Cholesky.
+- Optional home/away adjustment: scale samples by the player’s home vs away split for the event context.
 
 ## Caching and Performance
 - Cache player logs by (source, season, player).
 - Cache props payloads by event_id and sportsbook.
 - Persist priced parlay requests for reproducibility.
+
+## Injury Snapshots (Daily)
+- Take a daily snapshot of BallDontLie injuries so historical backtests can join injuries by date.
+- Recommended schedule: once per day at 9:00 AM ET (and optionally again mid-day).
+- Use a status-to-multiplier config (`config/injury_status_map.json`) to keep the mapping consistent.
+
+Example command (append to history + write per-day snapshot):
+
+```powershell
+python scripts/sync_bdl_injuries.py --append --output data/injuries_bdl.csv --snapshot-dir data/injuries/bdl
+```
+
+Team/opponent injury context is derived from the `team` / `team_abbr` columns in the injuries file and is exposed
+as aggregate counts + severity in the props API + backtest outputs.
 
 ## Known Gaps
 - Multi-player same-game alignment is not implemented in code.

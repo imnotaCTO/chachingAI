@@ -1,0 +1,8 @@
+{
+  "out": 0.0,
+  "doubtful": 0.15,
+  "questionable": 0.6,
+  "probable": 0.85,
+  "day-to-day": 0.7,
+  "gtd": 0.6
+}

@@ -97,6 +97,41 @@ def fetch_player_game_logs_by_name(
     ]
 
 
+def fetch_multi_player_game_logs_by_name(
+    player_names: list[str],
+    season_end_year: int,
+    data_path: str = "PlayerStatistics.csv",
+) -> pd.DataFrame:
+    """Fetch game logs for multiple players from the Kaggle NBA dataset."""
+    if not player_names:
+        raise ValueError("player_names must be non-empty")
+    df = _load_kaggle_player_stats(data_path)
+    normalized = {normalize_player_name(name) for name in player_names}
+    start, end = _season_window(season_end_year)
+    subset = df[
+        (df["_normalized_name"].isin(normalized))
+        & (df["date"] >= start)
+        & (df["date"] <= end)
+    ].copy()
+    if subset.empty:
+        raise ValueError("No Kaggle logs found for requested players.")
+    return subset[
+        [
+            "player_name",
+            "_normalized_name",
+            "player_id",
+            "date",
+            "team",
+            "opponent",
+            "location",
+            "minutes",
+            "points",
+            "rebounds",
+            "assists",
+        ]
+    ]
+
+
 def fetch_player_game_logs_from_cache(
     player_name: str,
     data_path: str,
@@ -131,3 +166,43 @@ def fetch_player_game_logs_from_cache(
             "assists",
         ]
     ]
+
+
+def fetch_multi_player_game_logs_from_cache(
+    player_names: list[str],
+    data_path: str,
+    *,
+    season_end_year: int | None = None,
+) -> pd.DataFrame:
+    """Fetch game logs for multiple players from a normalized local cache file."""
+    if not player_names:
+        raise ValueError("player_names must be non-empty")
+    csv_path = Path(data_path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Local cache not found at {csv_path}")
+    df = pd.read_parquet(csv_path) if csv_path.suffix.lower() == ".parquet" else pd.read_csv(csv_path)
+    df["_normalized_name"] = df["player_name"].map(normalize_player_name)
+    normalized = {normalize_player_name(name) for name in player_names}
+    subset = df[df["_normalized_name"].isin(normalized)].copy()
+    if season_end_year is not None and "date" in subset.columns:
+        start, end = _season_window(season_end_year)
+        subset["date"] = pd.to_datetime(subset["date"], errors="coerce")
+        subset = subset[(subset["date"] >= start) & (subset["date"] <= end)]
+    if subset.empty:
+        raise ValueError("No cache logs found for requested players.")
+    columns = [
+        "player_name",
+        "_normalized_name",
+        "player_id",
+        "date",
+        "team",
+        "opponent",
+        "location",
+        "minutes",
+        "points",
+        "rebounds",
+        "assists",
+    ]
+    if "game_id" in subset.columns:
+        columns.append("game_id")
+    return subset[columns]

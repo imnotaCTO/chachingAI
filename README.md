@@ -201,6 +201,32 @@ To use the Kaggle dataset for daily EV scan:
 python scripts/find_ev_props.py --stats-source kaggle --kaggle-path PlayerStatistics.csv --date today --season 2026 --min-games 15 --min-minutes 20 --min-ev 0.03 --stats points rebounds assists
 ```
 
+## Backtesting
+
+Full backtest with train/val splits (recommended for calibration):
+
+```powershell
+python scripts/backtest_props.py --data-dir data/odds_history --train-end 2024-12-31 --val-end 2025-06-30
+```
+
+Include injuries and calibration:
+
+```powershell
+python scripts/backtest_props.py --data-dir data/odds_history --train-end 2024-12-31 --val-end 2025-06-30 --injuries-path data/injuries_combined.csv --calibration platt
+```
+
+Fast re-analysis (seconds) without rebuilding props:
+
+```powershell
+python scripts/backtest_props.py --analyze-only --analysis-distribution gamma
+```
+
+Notes:
+- Use `--analysis-distribution lognormal|gamma|normal` to compare distribution fits.
+- Use `--edge-thresholds 0.02,0.05,0.08` to test higher EV filters.
+- Use `--no-home-advantage`, `--no-minutes-model`, `--no-pace-model` to disable feature adjustments.
+- Progress + ETA is enabled by default during backtest and analysis.
+
 ## Tests
 
 ```powershell

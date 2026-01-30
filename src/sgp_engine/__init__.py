@@ -28,6 +28,7 @@ from .matching import (
     props_to_leg_specs,
 )
 from .odds import american_to_prob, expected_value, prob_to_american
+from .pace import TeamPaceLookup, normalize_team_name
 from .pipeline import LegResult, LegSpec, ParlayRecommendation, price_parlay_from_samples
 from .simulation import ParlayLeg, evaluate_legs, simulate_lognormal_copula
 
@@ -42,6 +43,8 @@ __all__ = [
     "american_to_prob",
     "prob_to_american",
     "expected_value",
+    "TeamPaceLookup",
+    "normalize_team_name",
     "normalize_player_name",
     "build_player_name_index",
     "match_props_to_player_ids",

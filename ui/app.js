@@ -14,12 +14,21 @@ const state = {
   propsError: null,
   slateLoaded: false,
   propsView: "all",
+  parlayPrice: null,
+  pricing: false,
+  priceError: null,
+  priceErrorShown: false,
+  priceRequestId: 0,
+  priceAbort: null,
   modelSettings: {
     window: 25,
     minGames: 15,
     minMinutes: 20,
     useEma: true,
     emaSpan: 12,
+    useMinutesModel: true,
+    usePaceModel: true,
+    useHomeAdvantage: true,
   },
   filters: {
     game: "",
@@ -56,6 +65,9 @@ const selectors = {
   minMinutesInput: document.getElementById("minMinutesInput"),
   useEmaInput: document.getElementById("useEmaInput"),
   emaSpanInput: document.getElementById("emaSpanInput"),
+  useMinutesModelInput: document.getElementById("useMinutesModelInput"),
+  usePaceModelInput: document.getElementById("usePaceModelInput"),
+  useHomeAdvantageInput: document.getElementById("useHomeAdvantageInput"),
   toast: document.getElementById("toast"),
 };
 
@@ -122,6 +134,15 @@ const init = async () => {
     selectors.emaSpanInput.value = state.modelSettings.emaSpan;
     selectors.emaSpanInput.disabled = !state.modelSettings.useEma;
   }
+  if (selectors.useMinutesModelInput) {
+    selectors.useMinutesModelInput.checked = state.modelSettings.useMinutesModel;
+  }
+  if (selectors.usePaceModelInput) {
+    selectors.usePaceModelInput.checked = state.modelSettings.usePaceModel;
+  }
+  if (selectors.useHomeAdvantageInput) {
+    selectors.useHomeAdvantageInput.checked = state.modelSettings.useHomeAdvantage;
+  }
   bindEvents();
   await loadSportsbooks();
   renderParlay();
@@ -132,6 +153,9 @@ const bindEvents = () => {
   selectors.sportsbookSelect.addEventListener("change", (event) => {
     state.sportsbook = event.target.value;
     state.legs = [];
+    state.parlayPrice = null;
+    state.pricing = false;
+    state.priceError = null;
     if (state.slateLoaded && state.eventId) {
       loadProps(state.eventId);
     }
@@ -141,6 +165,9 @@ const bindEvents = () => {
   selectors.statsSource.addEventListener("change", (event) => {
     state.statsSource = event.target.value;
     state.legs = [];
+    state.parlayPrice = null;
+    state.pricing = false;
+    state.priceError = null;
     if (state.slateLoaded && state.eventId) {
       loadProps(state.eventId);
     }
@@ -186,6 +213,9 @@ const bindEvents = () => {
       if (state.slateLoaded && state.eventId) {
         loadProps(state.eventId);
       }
+      if (state.legs.length) {
+        priceParlay();
+      }
     });
   }
   if (selectors.minGamesInput) {
@@ -195,6 +225,9 @@ const bindEvents = () => {
       if (state.slateLoaded && state.eventId) {
         loadProps(state.eventId);
       }
+      if (state.legs.length) {
+        priceParlay();
+      }
     });
   }
   if (selectors.minMinutesInput) {
@@ -203,6 +236,9 @@ const bindEvents = () => {
       state.modelSettings.minMinutes = Number.isNaN(value) ? 0 : value;
       if (state.slateLoaded && state.eventId) {
         loadProps(state.eventId);
+      }
+      if (state.legs.length) {
+        priceParlay();
       }
     });
   }
@@ -215,6 +251,9 @@ const bindEvents = () => {
       if (state.slateLoaded && state.eventId) {
         loadProps(state.eventId);
       }
+      if (state.legs.length) {
+        priceParlay();
+      }
     });
   }
   if (selectors.emaSpanInput) {
@@ -223,6 +262,42 @@ const bindEvents = () => {
       state.modelSettings.emaSpan = Number.isNaN(value) ? 10 : value;
       if (state.slateLoaded && state.eventId) {
         loadProps(state.eventId);
+      }
+      if (state.legs.length) {
+        priceParlay();
+      }
+    });
+  }
+  if (selectors.useMinutesModelInput) {
+    selectors.useMinutesModelInput.addEventListener("change", (event) => {
+      state.modelSettings.useMinutesModel = event.target.checked;
+      if (state.slateLoaded && state.eventId) {
+        loadProps(state.eventId);
+      }
+      if (state.legs.length) {
+        priceParlay();
+      }
+    });
+  }
+  if (selectors.usePaceModelInput) {
+    selectors.usePaceModelInput.addEventListener("change", (event) => {
+      state.modelSettings.usePaceModel = event.target.checked;
+      if (state.slateLoaded && state.eventId) {
+        loadProps(state.eventId);
+      }
+      if (state.legs.length) {
+        priceParlay();
+      }
+    });
+  }
+  if (selectors.useHomeAdvantageInput) {
+    selectors.useHomeAdvantageInput.addEventListener("change", (event) => {
+      state.modelSettings.useHomeAdvantage = event.target.checked;
+      if (state.slateLoaded && state.eventId) {
+        loadProps(state.eventId);
+      }
+      if (state.legs.length) {
+        priceParlay();
       }
     });
   }
@@ -267,6 +342,37 @@ const fetchJson = async (path, { signal } = {}) => {
     throw new Error(message);
   }
   return response.json();
+};
+
+const fetchJsonPost = async (path, body, { signal } = {}) => {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) {
+    let message = `Request failed: ${response.status}`;
+    try {
+      const payload = await response.json();
+      if (payload?.error) {
+        message = payload.error;
+      }
+    } catch (error) {
+      // ignore parse errors
+    }
+    throw new Error(message);
+  }
+  return response.json();
+};
+
+const getSeasonFromDate = () => {
+  const dateValue = selectors.dateInput?.value;
+  if (!dateValue) {
+    return new Date().getFullYear();
+  }
+  const year = Number(dateValue.slice(0, 4));
+  return Number.isNaN(year) ? new Date().getFullYear() : year;
 };
 
 const loadSportsbooks = async () => {
@@ -346,10 +452,13 @@ const loadProps = async (eventId) => {
       max_players: "20",
       window: String(settings.window ?? 0),
       min_games: String(settings.minGames ?? 1),
-      min_minutes: String(settings.minMinutes ?? 0),
-      use_ema: settings.useEma ? "1" : "0",
-      ema_span: String(settings.emaSpan ?? 10),
-    }).toString();
+        min_minutes: String(settings.minMinutes ?? 0),
+        use_ema: settings.useEma ? "1" : "0",
+        ema_span: String(settings.emaSpan ?? 10),
+        use_minutes_model: settings.useMinutesModel ? "1" : "0",
+        use_pace_model: settings.usePaceModel ? "1" : "0",
+        use_home_advantage: settings.useHomeAdvantage ? "1" : "0",
+      }).toString();
     const data = await fetchJson(
       `/api/events/${eventId}/props?${sportsbookParam}${settingsParams}`,
       { signal: controller.signal }
@@ -650,6 +759,73 @@ const renderProps = () => {
   renderSection("O/U lines", ouGroups, false);
 };
 
+const buildParlayKey = () =>
+  JSON.stringify(
+    state.legs.map((leg) => ({
+      event_id: leg.event_id,
+      player_name: leg.player_name,
+      stat: leg.stat,
+      line: leg.line,
+      direction: leg.direction,
+      odds: leg.odds,
+    }))
+  );
+
+const priceParlay = async () => {
+  if (state.legs.length === 0) {
+    state.parlayPrice = null;
+    state.priceError = null;
+    state.pricing = false;
+    return;
+  }
+  const key = buildParlayKey();
+  if (state.parlayPrice && state.parlayPrice._key === key && !state.pricing) {
+    return;
+  }
+  if (state.priceAbort) {
+    state.priceAbort.abort();
+  }
+  const controller = new AbortController();
+  state.priceAbort = controller;
+  const requestId = ++state.priceRequestId;
+  state.pricing = true;
+  state.priceError = null;
+  state.priceErrorShown = false;
+  renderParlay();
+  try {
+    const payload = {
+      legs: state.legs,
+      stats_source: state.statsSource,
+      season: getSeasonFromDate(),
+      window: state.modelSettings.window,
+      min_games: state.modelSettings.minGames,
+      min_minutes: state.modelSettings.minMinutes,
+      use_ema: state.modelSettings.useEma ? 1 : 0,
+      ema_span: state.modelSettings.emaSpan,
+      use_minutes_model: state.modelSettings.useMinutesModel ? 1 : 0,
+      use_pace_model: state.modelSettings.usePaceModel ? 1 : 0,
+      use_home_advantage: state.modelSettings.useHomeAdvantage ? 1 : 0,
+    };
+    const data = await fetchJsonPost("/api/parlay/price", payload, { signal: controller.signal });
+    if (requestId !== state.priceRequestId) {
+      return;
+    }
+    state.parlayPrice = { ...data, _key: key };
+  } catch (error) {
+    if (requestId !== state.priceRequestId) {
+      return;
+    }
+    state.priceError = error.message;
+    state.priceErrorShown = false;
+    state.parlayPrice = null;
+  } finally {
+    if (requestId === state.priceRequestId) {
+      state.pricing = false;
+      renderParlay();
+    }
+  }
+};
+
 const addLeg = (prop) => {
   const key = `${prop.event_id}-${prop.player_id || prop.player_name}-${prop.stat}`;
   const existingIndex = state.legs.findIndex(
@@ -671,11 +847,13 @@ const addLeg = (prop) => {
   }
   renderParlay();
   renderProps();
+  priceParlay();
 };
 
 const removeLeg = (index) => {
   state.legs.splice(index, 1);
   renderParlay();
+  priceParlay();
 };
 
 const renderParlay = () => {
@@ -703,19 +881,32 @@ const renderParlay = () => {
     return;
   }
 
-  const jointModel = state.legs.reduce((acc, leg) => acc * leg.model_probability, 1);
-  const implied = state.legs.reduce((acc, leg) => acc * americanToProb(leg.odds), 1);
-  const fairOdds = probToAmerican(jointModel);
-  const impliedOdds = probToAmerican(implied);
-  const ev = expectedValue(jointModel, impliedOdds);
+  if (state.pricing || !state.parlayPrice) {
+    const loadingText = state.pricing ? "Pricing..." : "--";
+    selectors.modelProb.textContent = loadingText;
+    selectors.impliedProb.textContent = loadingText;
+    selectors.fairOdds.textContent = loadingText;
+    selectors.expectedValue.textContent = loadingText;
+    selectors.sampleSize.textContent = "--";
+    if (state.priceError && !state.priceErrorShown) {
+      showToast(state.priceError, "error");
+      state.priceErrorShown = true;
+    }
+    return;
+  }
+
+  const jointModel = state.parlayPrice.joint_probability;
+  const implied = state.parlayPrice.sportsbook_implied_probability;
+  const fairOdds = state.parlayPrice.model_fair_odds;
+  const ev = state.parlayPrice.expected_value;
 
   selectors.modelProb.textContent = formatPercent(jointModel);
   selectors.impliedProb.textContent = formatPercent(implied);
   selectors.fairOdds.textContent = formatOdds(fairOdds);
   selectors.expectedValue.textContent = ev === null ? "--" : `${(ev * 100).toFixed(1)}%`;
 
-  const minSample = Math.min(...state.legs.map((leg) => leg.sample_size || 0));
-  selectors.sampleSize.textContent = minSample ? `${minSample} games` : "--";
+  const sampleSize = state.parlayPrice.diagnostics?.correlated_sample_size || state.parlayPrice.diagnostics?.sample_size;
+  selectors.sampleSize.textContent = sampleSize ? `${sampleSize} games` : "--";
 };
 
 init();
